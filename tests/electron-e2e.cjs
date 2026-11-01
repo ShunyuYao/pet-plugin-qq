@@ -67,6 +67,8 @@ async function send(text) { await type(chat, '.cp-input input', text); await H.c
     await H.stopOwned(child); child = null; await start(); await openPanel();
     await wait(() => value(panel, 'document.querySelector("#status").textContent === "原会话已连接"'), 'binding restored after restart', 25000);
     assert.equal(f.prompts.length, 3, 'restart does not replay');
+    f.qqMessage(101, 'QQ 继续贝壳话题'); await new Promise(r => setTimeout(r, 500));
+    assert.equal(f.prompts.length, 3, 'encrypted ledger deduplicates redelivery after restart'); assert.equal(f.sent.length, 1);
     await openChat(); await wait(() => value(chat, 'document.body.textContent.includes("QQ 继续贝壳话题")'), 'original history after restart');
     await activateButton(panel, '#disconnect', { capture: false }); await wait(() => value(panel, 'document.querySelector("#status").textContent === "尚未绑定"'), 'explicit unbind');
     assert.deepEqual(JSON.parse(fs.readFileSync(path.join(profile, 'external-conversations.json'))), []);
