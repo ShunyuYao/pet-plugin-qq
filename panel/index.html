@@ -1,0 +1,15 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>QQ 宠物连接</title><link rel="stylesheet" href="style.css"></head><body>
+<main><header><span class="eyebrow">同一只宠物 · 两个聊天入口</span><h1>把 QQ 的话题接着聊</h1><p>连接已有 DSH 会话。桌面聊天和主人 QQ 私聊共用原来的上下文。</p></header>
+<section class="status"><span id="dot"></span><strong id="status">正在读取连接状态</strong><p id="detail" role="status"></p></section>
+<form id="connection"><h2>连接已有宠物</h2><div class="pair"><label>DSH 本机地址<input id="dshUrl" placeholder="http://127.0.0.1:9120" required></label><label>已有会话 ID<input id="sessionId" autocomplete="off" required></label></div>
+<label>DSH 访问令牌<input id="dshToken" type="password" autocomplete="new-password" placeholder="仅在本机加密保存"></label>
+<label>NapCat 正向 WebSocket 地址<input id="qqUrl" placeholder="ws://127.0.0.1:3001" required></label>
+<label>NapCat 访问令牌<input id="qqToken" type="password" autocomplete="new-password"></label>
+<div class="pair"><label>主人 QQ<input id="ownerQQ" inputmode="numeric" required></label><label>机器人 QQ<input id="botQQ" inputmode="numeric" required></label></div>
+<label class="check"><input id="exclusive" type="checkbox" required><span>我已停止旧桥接对这个会话的收发，并在 DSH 中确认原人设和记忆可用。此插件只接管主人好友私聊。</span></label>
+<p class="hint">首版使用本机 DSH 0.2.1-rc.2 协议与 NapCat OneBot v11。远程服务先转发到本机；NapCat 消息格式请选择数组。连接会替换桌宠主聊天的数据来源，已有本地记录保留。</p>
+<button id="connect" type="submit">验证并连接原会话</button></form>
+<div id="actions" hidden><button id="reconnect" type="button">重新连接</button><button id="disconnect" class="secondary" type="button">解除绑定，恢复本地聊天</button></div>
+<section class="optional"><h2>B 站生活 · 可选</h2><p>核心聊天无需安装或登录 B 站。本版尚未启用跨端视频任务，现有 B 站插件仍按原设置运行。</p></section>
+<section><h2>最近处理状态</h2><p class="hint">停止等待不会回滚已在 DSH 提交的回合。结果不明确时先到 DSH 和 QQ 核对，不会自动重发。</p><ol id="jobs"><li>还没有跨端消息</li></ol></section>
+</main><script src="panel.js"></script></body></html>
