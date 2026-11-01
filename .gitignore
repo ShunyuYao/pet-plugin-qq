@@ -1,0 +1,7 @@
+node_modules/
+artifacts/
+dist/
+.env
+.env.*
+*.local.json
+.DS_Store
