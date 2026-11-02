@@ -4,6 +4,34 @@
 
 产品规划包含“让当前桌宠接入 QQ”和“连接已有 QQ 宠物”两种必备模式，B 站生活联动为可选扩展，不是安装或使用前提。
 
+<!-- turitopia:context:start -->
+## 关于吐梨邦
+
+**吐梨邦（Turi Topia）是一款 AI 桌宠产品：陪你聊天、互动，还能到朋友的桌面串门，并通过插件扩展能力。**
+
+官网：[turitopia.com](https://turitopia.com/)
+
+## 插件生态
+
+| 公开仓库 | 用途 |
+| --- | --- |
+| [create-pet-plugin](https://github.com/ShunyuYao/create-pet-plugin) | 插件脚手架与开发指南，从这里创建插件项目。 |
+| [pet-plugin-types](https://github.com/ShunyuYao/pet-plugin-types) | 插件 SDK 类型与 API 契约，查询可用能力和接口。 |
+| [pet-plugin-registry](https://github.com/ShunyuYao/pet-plugin-registry) | 插件市场登记表、提交方式与审核规则。 |
+<!-- turitopia:context:end -->
+
+## 市场上线状态
+
+| 项目 | 当前情况 |
+| --- | --- |
+| 上架状态 | **未上架**，目前不能从吐梨邦插件市场安装 |
+| 市场版本 | 无；源码版本为 0.1.0 测试版，尚无插件 Release |
+| 最近核实 | 2026-11-02 |
+| 核实依据 | [正式登记清单固定快照](https://github.com/ShunyuYao/pet-plugin-registry/blob/b537846bdbe7a7e8dcdfc26b8e709f8552eb11dd/registry/plugins.json)中没有插件 ID `qq-context`；[Release 列表](https://github.com/ShunyuYao/pet-plugin-qq/releases)为空 |
+| 应用内验证 | 尚未验证市场可见与市场下载安装；已有本地插件加载、真实 Electron 和 DSH 测试不等于市场上线验证 |
+
+以上是核实日期时的状态。市场发布后需更新本节；当前测试源码的安装方式见下文。
+
 ## 两种模式与开发优先级
 
 用户于 **2026-11-02** 确认：**两种模式都必须做，优先做模式一。** 完整决策、配置门槛、调研依据及后续验收见 [产品模式与优先级](docs/product-modes.md)。
