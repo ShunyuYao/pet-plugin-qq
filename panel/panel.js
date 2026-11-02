@@ -5,6 +5,7 @@ let loaded = false; let busy = false;
 const states = { connected: '原会话已连接', offline: '连接已断开', connecting: '正在验证连接', disconnected: '尚未绑定' };
 const jobStates = { queued: '排队', running: '原会话生成中', sending: '正在发回 QQ', completed: '已完成', unknown: '结果待核对', cancelled: '已停止等待', failed: '失败' };
 async function refresh() {
+  if (document.getElementById('private-mode')?.hidden) return;
   try {
     const value = await call('state'); $('status').textContent = states[value.state] || value.state;
     $('detail').textContent = value.error || (value.bound ? '在桌宠主聊天窗口继续聊；QQ 提问只回复主人 QQ。' : '先确认原会话，再连接。');

@@ -1,12 +1,12 @@
 {
   "id": "qq-context",
   "name": "QQ 宠物连接",
-  "description": "把已有 DSH 宠物接到桌面，与主人 QQ 私聊共用原会话。",
-  "version": "0.1.0",
+  "description": "收集指定 QQ 群消息、响应 @ 并整理带原话的反馈，在桌宠中查看和追问；也可连接已有 DSH 宠物。",
+  "version": "0.2.0-dev.1",
   "apiVersion": 1,
   "kind": ["tool", "panel", "service"],
-  "permissions": ["storage", "secrets", "events", "ui", "conversation", "net:127.0.0.1", "net:localhost"],
+  "permissions": ["storage", "secrets", "events", "ui", "conversation", "ai", "tools", "net:127.0.0.1", "net:localhost"],
   "services": ["qq-context"],
-  "provides": { "service": "qq-context", "methods": ["state", "connect", "disconnect", "reconnect", "start", "poll", "history", "cancel"] },
+  "provides": { "service": "qq-context", "methods": ["state", "connect", "disconnect", "reconnect", "start", "poll", "history", "cancel", "groupState", "groupConnect", "groupPause", "groupResume", "groupMessages", "groupMessageDetail", "groupClear", "groupConfigureAI", "groupUpdateConnection", "groupFeedback", "groupFeedbackDetail", "groupFeedbackUpdate", "groupFeedbackSplit", "groupRetry", "groupProcess"] },
   "entry": { "tool": "index.cjs", "panel": { "src": "panel/index.html", "width": 640, "height": 760, "title": "QQ 宠物连接" } }
 }

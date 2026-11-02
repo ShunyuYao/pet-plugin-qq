@@ -1,8 +1,10 @@
 'use strict';
 const { createHash } = require('node:crypto');
 const { Engine, validateConfig } = require('./src/engine.cjs');
+const { createGroupService } = require('./src/group-service.cjs');
 module.exports.activate = async function (pet) {
   if (!pet.conversation?.bind || !pet.profile?.getScope) throw Error('需要支持外部会话接口的测试宿主。此版本尚未面向旧宿主发布。');
+  const groups = createGroupService(pet);
   let engine; let scope; let key; let binding; let state = 'disconnected'; let error = ''; let disposed = false; let epoch = 0; let setup = Promise.resolve(); let changeTimer;
   const current = async (expected = scope) => { const actual = await pet.profile.getScope(); return !disposed && actual.scopeId === expected?.scopeId && actual.revision === expected?.revision; };
   const notify = () => { clearTimeout(changeTimer); changeTimer = setTimeout(() => pet.conversation.changed().catch(() => {}), 120); };
@@ -36,6 +38,7 @@ module.exports.activate = async function (pet) {
     if (!await current() || !active || active.bindingId !== request?.bindingId || active.scopeId !== request.scopeId || !engine) throw Error('会话绑定已变化。');
   }
   const api = {
+    ...groups.api,
     async state(caller) {
       await panel(caller);
       const config = await pet.storage.get('config.' + key, {});
@@ -61,10 +64,12 @@ module.exports.activate = async function (pet) {
     async cancel(request, caller) { await host(request, caller); return engine.cancel(request.requestId); },
   };
   await pet.services.provide('qq-context', api);
+  void groups.start().catch(() => {});
+  pet.events.on('host:context-changed', () => { void groups.contextChanged().catch(() => {}); });
   pet.events.on('host:context-changed', () => { ++epoch; engine?.close(); state = 'disconnected'; binding = null; setup = setup.then(restore).catch(() => { state = 'offline'; error = '切换身份失败。'; }); });
   // Plugin activation does not wait on external networking.
   setup = setup.then(restore).catch(() => { state = 'offline'; error = '恢复连接失败。'; });
-  const dispose = () => { disposed = true; ++epoch; clearTimeout(changeTimer); engine?.close(); };
+  const dispose = () => { disposed = true; ++epoch; clearTimeout(changeTimer); engine?.close(); groups.dispose(); };
   process.once('disconnect', dispose); process.once('SIGTERM', dispose); process.parentPort?.once?.('close', dispose);
   return { dispose };
 };

@@ -12,6 +12,12 @@ class OneBot extends EventEmitter {
       try {
         const m = JSON.parse(String(raw));
         if (m.echo && this.pending.has(m.echo)) { this.pending.get(m.echo)(m); return; }
+        // Group consumers persist structured events separately. Never pass them
+        // through the legacy private-chat engine or private reply route.
+        if (this.ready && String(m.self_id) === this.config.botQQ && Array.isArray(this.config.groupIds)
+          && this.config.groupIds.includes(String(m.group_id))
+          && ((['message', 'message_sent'].includes(m.post_type) && m.message_type === 'group')
+            || (m.post_type === 'notice' && ['group_recall','group_upload'].includes(m.notice_type)))) this.emit('group-event', m);
         if (!this.ready || m.post_type !== 'message' || m.message_type !== 'private' || m.sub_type !== 'friend'
           || String(m.self_id) !== this.config.botQQ || String(m.user_id) !== this.config.ownerQQ || String(m.user_id) === String(m.self_id)) return;
         // Array messages only: reject CQ codes, images, and embedded at/forward segments in v1.
@@ -46,6 +52,13 @@ class OneBot extends EventEmitter {
     if (!this.ready) throw Error('QQ 未连接。');
     const receipt = await this.call('send_private_msg', { user_id: Number(this.config.ownerQQ), message: [{ type: 'text', data: { text } }] });
     if (!['number', 'string'].includes(typeof receipt?.message_id)) throw Error('QQ 发送回执无效。');
+    return String(receipt.message_id);
+  }
+  async sendGroup(groupId, text) {
+    if (!this.ready || !this.config.groupIds?.includes(groupId)) throw Error('无权向该群发送消息');
+    if (typeof text !== 'string' || !text.trim() || text.length > 1000) throw Error('群回复内容无效');
+    const receipt = await this.call('send_group_msg', {group_id:Number(groupId),message:[{type:'text',data:{text}}]});
+    if (!['number','string'].includes(typeof receipt?.message_id)) throw Error('群发送回执未知，不自动重发');
     return String(receipt.message_id);
   }
   close() { this.ready = false; this.socket?.terminate(); for (const finish of [...this.pending.values()]) finish(null); }
