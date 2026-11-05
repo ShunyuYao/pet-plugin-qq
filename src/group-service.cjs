@@ -6,6 +6,7 @@ const { GroupCollector } = require('./group-collector.cjs');
 const { GroupWorker } = require('./group-worker.cjs');
 const { FeedbackRepository } = require('./group-feedback.cjs');
 const { OfficialSetup } = require('./official-setup.cjs');
+const { OfficialPrivate } = require('./official-private.cjs');
 function createGroupService(pet) {
   const officialSetup = new OfficialSetup(pet);
   let epoch = 0, disposed = false, serial = Promise.resolve(), session = null, error = '';
@@ -72,7 +73,21 @@ function createGroupService(pet) {
       return result;
     }, false);
   }
+  const direct=new OfficialPrivate(pet,{authorize,canOpen:async()=>{
+    if(session&&!['paused','offline','disconnected'].includes(session.collector.state))throw Error('请先暂停群采集，再启用官方私聊。');
+    if(['connecting','ready','reconnecting'].includes(officialSetup.state))throw Error('请先停止群发现，再启用官方私聊。');
+  }});
   const api = {
+    async directState(caller){return read(caller,()=>direct.status());},
+    async directConnect(input,caller){await authorize(caller);return queue(async()=>{
+      const bound=await active(),scope=await pet.profile.getScope(),saved=await officialSetup.saved(scope);
+      const appId=String(input?.appId||bound?.config.appId||saved?.appId||'').trim();
+      const appSecret=input?.appSecret||(bound?.config.appId===appId?bound.config.appSecret:'')||(saved?.appId===appId?saved.appSecret:'');
+      return direct.connect({...input,appId,appSecret},scope);
+    });},
+    async directPause(caller){await authorize(caller);return queue(()=>direct.pause());},
+    async directUpdate(input,caller){await authorize(caller);return queue(()=>direct.update(input));},
+    async directResume(caller){await authorize(caller);return queue(()=>direct.resume());},
     async groupState(caller) { return read(caller, async bound => {
       const official = await officialSetup.status();
       if (!bound) return { viewRevision:epoch, state: 'disconnected', error, messages: 0, groupReplies: false, model: 'not-connected', official };
@@ -82,6 +97,7 @@ function createGroupService(pet) {
     async groupOfficialPrepare(input, caller) {
       await authorize(caller);
       return queue(async () => {
+        if(direct.active())throw Error('请先暂停官方私聊，再启动群发现。');
         if (session) throw Error('已有群配置，不能覆盖；请使用现有连接设置。');
         return officialSetup.prepare(input);
       });
@@ -90,6 +106,7 @@ function createGroupService(pet) {
     async groupConnect(input, caller) {
       await authorize(caller);
       return queue(async () => {
+        if(direct.active())throw Error('请先暂停官方私聊，再连接测试群。');
         if (session) throw Error('已有群采集配置，请先停止并保留数据后再重新配置。');
         const config = validateGroupConfig(input?.provider === 'official' ? await officialSetup.connection(input) : input);
         const generation = epoch, scope = await pet.profile.getScope();
@@ -105,6 +122,7 @@ function createGroupService(pet) {
       await bound.worker.stop(); await bound.collector.pause(); await saveEnabled(bound, false); error = ''; return true;
     }); },
     async groupResume(caller) { return read(caller, async bound => {
+      if(direct.active())throw Error('请先暂停官方私聊，再恢复群采集。');
       if (!bound) throw Error('尚未配置群采集。');
       await bound.worker.stop(); await bound.collector.pause();
       await saveEnabled(bound, true); await bound.collector.open(); bound.worker.start(); error = ''; return true;
@@ -187,9 +205,9 @@ function createGroupService(pet) {
     },
   });
   return { api,
-    start: () => queue(restore),
-    contextChanged() { officialSetup.stop(); stop(); return queue(restore); },
-    dispose() { disposed = true; officialSetup.stop(); clearInterval(maintenance); stop(); },
+    start: () => queue(async()=>{await restore();await direct.restore();}),
+    contextChanged() { direct.stop();officialSetup.stop(); stop(); return queue(async()=>{await restore();await direct.restore();}); },
+    dispose() { disposed = true;direct.dispose(); officialSetup.stop(); clearInterval(maintenance); stop(); },
   };
 }
 module.exports = { createGroupService };

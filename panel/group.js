@@ -13,7 +13,7 @@
     $('groups-label').textContent = official ? '指定群 OpenID（逗号分隔，或点击上方发现结果）' : '指定群号（逗号分隔）';
   }
   for (const id of ['provider','provider-onebot']) $(id).onchange = () => { $('groups').value=''; $('secret').value=''; if(provider()!=='official')void call('groupOfficialStop').catch(()=>{}); providerFields(); };
-  const names = {disconnected:'尚未配置群采集',connecting:'正在验证机器人',collecting:'正在采集群消息',paused:'采集与模型任务已暂停',offline:'连接已断开 / 已停止采集'};
+  const names = {disconnected:'尚未配置群采集',connecting:'正在验证机器人',reconnecting:'腾讯 SDK 正在自动恢复连接',collecting:'正在采集群消息',paused:'采集与模型任务已暂停',offline:'连接已断开 / 已停止采集'};
   const statuses = {pending:'待确认',confirmed:'已确认',ignored:'已忽略',in_progress:'处理中',resolved:'已解决'};
   const jobNames={queued:'排队',running:'生成中',sending:'发送中',completed:'已发送',failed:'失败',unknown:'结果待核对',cancelled:'已取消'};
   const el = (tag, text, className) => { const node=document.createElement(tag);node.textContent=text;if(className)node.className=className;return node; };
@@ -30,9 +30,8 @@
   const clearTokenLabel=el('label','明确清空已保存的令牌','check'),clearToken=el('input','');clearToken.id='g-clear-token';clearToken.type='checkbox';clearTokenLabel.prepend(clearToken);connectionBox.append(clearTokenLabel);
   const connectionButton=el('button','保存接入配置','secondary');connectionButton.id='g-update-connection';connectionButton.type='button';connectionBox.append(connectionButton);$('controls').append(connectionBox);
   function clearView() { pageGeneration++; selected=null;loaded=false;feedbackNext=0;messageNext=0;feedbackCount=-1;for(const id of ['feedback-list','message-list','feedback-sources','jobs','official-groups'])$(id).replaceChildren();$('connection').reset();providerFields();$('feedback-editor').reset();for(const id of ['update-token','update-url','edit-budget'])$(id).value='';$('clear-token').checked=false;$('edit-ai').checked=false;$('edit-replies').checked=false;$('config-summary').textContent='';$('feedback-id').textContent='';$('feedback-editor').hidden=true;$('message-detail').hidden=true;$('message-detail').textContent=''; }
-  for(const kind of ['group','private'])document.getElementById('mode-'+kind).addEventListener('click',()=>{
-    document.getElementById('group-mode').hidden=kind!=='group';document.getElementById('private-mode').hidden=kind!=='private';
-    for(const other of ['group','private'])document.getElementById('mode-'+other).setAttribute('aria-pressed',String(other===kind));
+  for(const kind of ['direct','group','private'])document.getElementById('mode-'+kind).addEventListener('click',()=>{
+    for(const other of ['direct','group','private']){document.getElementById(other+'-mode').hidden=kind!==other;document.getElementById('mode-'+other).setAttribute('aria-pressed',String(other===kind));}
   });
   async function action(operation) { if(busy)return;busy=true;$('error').textContent='';for(const node of document.querySelectorAll('#group-mode button'))node.disabled=true;try{await operation();}catch(error){$('error').textContent=error.message;}finally{busy=false;for(const node of document.querySelectorAll('#group-mode button'))node.disabled=false;await refresh();} }
   async function refresh() {
@@ -42,10 +41,10 @@
       const official = state.official || {};
       if (official.appId && !$('app-id').value) $('app-id').value = official.appId;
       $('secret').placeholder = official.hasSecret ? '已保存密钥；留空复用，不回显' : '只在本机凭据仓保存，不回显';
-      const officialNames={idle:'尚未连接官方网关',connecting:'正在验证官方密钥与网关',ready:'官方连接成功，等待发现测试群（未采集原文）',offline:'官方连接失败 / 已断开'};
-      $('official-status').textContent=(officialNames[official.state]||'尚未验证官方机器人')+(official.error?' · '+official.error:'');
-      $('official-prepare').disabled=['connecting','ready'].includes(official.state);
-      $('official-stop').disabled=!['connecting','ready'].includes(official.state);
+      const officialNames={idle:'尚未连接官方网关',connecting:'正在验证官方密钥与网关',reconnecting:'腾讯 SDK 正在自动恢复连接',ready:'官方连接成功，等待发现测试群（未采集原文）',offline:'官方连接失败 / 已断开'};
+      $('official-status').textContent=(officialNames[official.state]||'尚未验证官方机器人')+(official.error?' · '+official.error:'')+(official.diagnostics?` · 腾讯 SDK ${official.diagnostics.sdkVersion} · 私聊到达 ${official.diagnostics.privateMessages} 条（仅诊断，不保存或回复）`:'');
+      $('official-prepare').disabled=['connecting','ready','reconnecting'].includes(official.state);
+      $('official-stop').disabled=!['connecting','ready','reconnecting'].includes(official.state);
       $('official-groups').replaceChildren(...(official.groups||[]).map(group=>{
         const button=el('button',`${group.groupId} · ${group.fullMessagesObserved?'已收到普通群消息':'仅确认群事件，尚未验证全量接收'} · 点击选入`,'record-button');button.type='button';button.onclick=()=>{const ids=$('groups').value.split(/[,，\s]+/).filter(Boolean);if(!ids.includes(group.groupId))ids.push(group.groupId);$('groups').value=ids.join(',');};return button;
       }));
@@ -53,7 +52,8 @@
       $('connection').hidden=!!state.config;$('controls').hidden=!state.config;$('browser').hidden=!state.config;
       $('progress').textContent=`已记录 ${state.messages||0} 条 · 候选反馈 ${state.progress?.feedback||0} 条 · 待整理 ${state.progress?.pending||0} 条 · 失败 ${state.progress?.failed||0} 条 · 今日模型预留调用 ${state.progress?.calls||0} 次${state.processing?' · 正在处理':''}`;
       const incoming=state.receiveDiagnostics,gateway=incoming?.gateway;
-      receiveStatus.textContent=gateway?`本次连接：网关群消息 ${gateway.groupMessages} 条（全量事件 ${gateway.fullMessages}、@ 事件 ${gateway.atMessages}）；匹配授权群 ${gateway.allowedGroupMessages}，解析通过 ${incoming.normalized}，解析拒绝 ${incoming.rejected}，新增保存 ${incoming.persisted}；心跳确认 ${gateway.heartbeatAcks} 次。${gateway.groupMessages===0?'尚未收到群消息推送；在线不等于已收到普通消息。':''}`:'';
+      receiveStatus.textContent=gateway?`腾讯 SDK ${gateway.sdkVersion}：群消息 ${gateway.groupMessages} 条（全量事件 ${gateway.fullMessages}、@ 事件 ${gateway.atMessages}）；匹配授权群 ${gateway.allowedGroupMessages}，解析通过 ${incoming.normalized}，解析拒绝 ${incoming.rejected}，新增保存 ${incoming.persisted}。私聊到达 ${gateway.privateMessages} 条（仅连接诊断，不保存、不回复）；恢复连接 ${gateway.reconnects} 次，心跳由 SDK 管理。${gateway.groupMessages===0?'尚未收到群消息推送；在线不等于已收到普通消息。':''}`:'';
+      if (!state.error && !state.processingError && /SDK 正在恢复连接/.test($('error').textContent)) $('error').textContent='';
       if(state.error||state.processingError)$('error').textContent=state.error||state.processingError;
       if(!state.config){$('progress').textContent='先配置机器人与指定群。无需 DSH；模型功能需支持隔离调用的候选宿主。';return;}
       const c=state.config;officialConnection=c.provider==='official';$('config-summary').textContent=`${officialConnection?'官方 AppID '+c.appId:'NapCat 机器人 '+c.botQQ} · 群 ${c.groupIds.join('、')} · 原文保留 ${c.retentionDays} 天 · 容量 ${c.maxEvents} · ${c.automation?'宿主隔离模型 / 每日最多 '+c.modelCallsPerDay+' 次':'仅采集，不调用模型'}${officialConnection?' · 撤回通知未验证，不承诺自动同步':''}`;
@@ -107,5 +107,5 @@
   }
   for(const id of ['filter-group','filter-type','filter-status'])$(id).addEventListener('change',()=>action(async()=>{pageGeneration++;await feedback(false);if(id==='filter-group'){selected=null;$('feedback-editor').hidden=true;$('message-detail').hidden=true;await messages(false);}}));
   $('feedback-more').onclick=()=>action(()=>feedback(true));$('messages-more').onclick=()=>action(()=>messages(true));$('messages-refresh').onclick=()=>action(async()=>{await feedback(false);await messages(false);});$('retry').onclick=()=>action(()=>call('groupRetry',{groupId:$('filter-group').value}));
-  void refresh();setInterval(()=>{if(!busy)void refresh();},2000);
+  void refresh();setInterval(()=>{if(!busy&&!document.getElementById('group-mode').hidden)void refresh();},2000);
 })();

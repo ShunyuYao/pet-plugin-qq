@@ -14,7 +14,7 @@ class OfficialSetup {
   stop() { ++this.generation; this.bot?.close(); this.bot = null; this.scope = null; this.state = 'idle'; this.groups.clear(); this.error = ''; }
   async saved(scope) { return await this.pet.secrets.get(this.key(scope)); }
   async prepare(input) {
-    if (this.bot && ['connecting','ready'].includes(this.state)) throw Error('官方连接正在建立或已在线；请先停止发现，再更换密钥或重新验证。');
+    if (this.bot && ['connecting','ready','reconnecting'].includes(this.state)) throw Error('官方连接正在建立或已在线；请先停止发现，再更换密钥或重新验证。');
     this.stop(); const generation = this.generation, scope = await this.pet.profile.getScope();
     const previous = await this.saved(scope);
     const config = credentials({ appId: input?.appId, appSecret: input?.appSecret || (previous?.appId === input?.appId ? previous.appSecret : '') });
@@ -35,6 +35,8 @@ class OfficialSetup {
       })().catch(() => {});
     });
     bot.on('offline', message => { if (generation === this.generation) { this.state = 'offline'; this.error = message || '官方连接已断开，请手动重试'; } });
+    bot.on('reconnecting', () => { if (generation === this.generation) { this.state='reconnecting'; this.error='腾讯 SDK 正在恢复连接'; } });
+    bot.on('reconnected', () => { if (generation === this.generation) { this.state='ready'; this.error=''; } });
     // SDK calls have a 15-second envelope; do not block it on network handshake.
     this.pending = bot.open().then(async () => {
       if (await this.same(scope, generation)) this.state = 'ready'; else bot.close();
@@ -47,7 +49,7 @@ class OfficialSetup {
   async status() {
     const scope = await this.pet.profile.getScope(), saved = await this.saved(scope);
     if (this.scope && (this.scope.scopeId !== scope.scopeId || this.scope.revision !== scope.revision)) this.stop();
-    return { state: this.state, error: this.error, appId: saved?.appId || '', hasSecret: !!saved?.appSecret, groups: [...this.groups.values()] };
+    return { state: this.state, error: this.error, appId: saved?.appId || '', hasSecret: !!saved?.appSecret, groups: [...this.groups.values()], diagnostics:this.bot?.diagnostics?.()||null };
   }
   async connection(input) {
     const scope = await this.pet.profile.getScope(), saved = await this.saved(scope);

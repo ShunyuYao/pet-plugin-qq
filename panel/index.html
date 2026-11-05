@@ -1,5 +1,9 @@
 <!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>QQ 宠物连接</title><link rel="stylesheet" href="style.css"></head><body>
-<main><nav aria-label="接入模式"><button id="mode-group" type="button" aria-pressed="true">群反馈助手</button><button id="mode-private" type="button" class="secondary" aria-pressed="false">已有 QQ 宠物 · DSH</button></nav>
+<main><nav aria-label="接入模式"><button id="mode-direct" type="button" class="secondary" aria-pressed="false">QQ 官方私聊</button><button id="mode-group" type="button" aria-pressed="true">群反馈助手</button><button id="mode-private" type="button" class="secondary" aria-pressed="false">已有 QQ 宠物 · DSH</button></nav>
+<div id="direct-mode" hidden><header><span class="eyebrow">吐梨邦 · 腾讯官方 SDK</span><h1>先和机器人私聊</h1><p>只回复绑定的本人，不处理群消息。先验证单轮文字收发，不同步桌宠或 Harness 的旧记忆。</p></header>
+<section><strong id="d-status">正在读取私聊状态</strong><p id="d-summary"></p><p id="d-error" role="status"></p><p class="hint">使用当前宿主模型，消息可能发往模型服务。无文件／终端工具；不保存聊天正文，只在本机加密保存配置、调用次数和去重状态。群与私聊不能同时连接。</p></section>
+<form id="d-connect"><label>官方机器人 AppID<input id="d-app-id" inputmode="numeric" required></label><label>AppSecret（已有群配置可留空复用当前凭据）<input id="d-secret" type="password" autocomplete="new-password"></label><label>本人 user_openid（不是普通 QQ 号，可复用 Harness 已绑定的本人白名单）<input id="d-owner" autocomplete="off" required></label><label>每日模型调用上限<input id="d-budget" type="number" min="1" max="500" required></label><label class="check"><input id="d-confirm" type="checkbox" required><span>确认仅授权此本人私聊，使用当前模型进行单轮回复；不开放其他人、群聊或本机工具。</span></label><button type="submit">连接本人私聊</button></form>
+<section id="d-controls" hidden><button id="d-pause" type="button">暂停私聊</button><button id="d-resume" type="button" class="secondary">恢复私聊</button><details><summary>更新密钥与预算（先暂停，保留去重账本）</summary><label>新 AppSecret（留空保持原密钥）<input id="d-update-secret" type="password" autocomplete="new-password"></label><label>每日调用上限<input id="d-update-budget" type="number" min="1" max="500"></label><button id="d-update" type="button" class="secondary">保存私聊设置</button></details><h2 class="spaced">最近处理状态</h2><ul id="d-jobs"></ul></section></div>
 <div id="group-mode"><header><span class="eyebrow">吐梨邦 · QQ 群反馈助手</span><h1>把群里的声音，带回桌宠</h1><p>采集指定群的新消息，@ 时聊天，整理有原话依据的 bug 和建议。</p></header>
 <section aria-label="群运行状态"><strong id="g-status">正在读取状态</strong><p id="g-progress"></p><p id="g-error" role="status" aria-live="polite"></p><p class="hint">APP 退出即离线；不承诺补齐离线消息。群端不能读取桌面私人聊天。桌面查询不会自动发回群。</p></section>
 <form id="g-connection"><h2>连接测试群</h2>
@@ -27,4 +31,4 @@
 <div id="actions" hidden><button id="reconnect" type="button">重新连接</button><button id="disconnect" class="secondary" type="button">解除绑定，恢复本地聊天</button></div>
 <section class="optional"><h2>B 站生活 · 可选</h2><p>核心聊天无需安装或登录 B 站。本版尚未启用跨端视频任务，现有 B 站插件仍按原设置运行。</p></section>
 <section><h2>最近处理状态</h2><p class="hint">停止等待不会回滚已在 DSH 提交的回合。结果不明确时先到 DSH 和 QQ 核对，不会自动重发。</p><ol id="jobs"><li>还没有跨端消息</li></ol></section>
-</div></main><script src="panel.js"></script><script src="group.js"></script></body></html>
+</div></main><script src="panel.js"></script><script src="group.js"></script><script src="direct.js"></script></body></html>

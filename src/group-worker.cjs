@@ -85,4 +85,4 @@ class GroupWorker {
   }
   status() { return { model: this.config.automation ? 'host-isolated' : 'disabled', groupReplies: !!(this.config.automation && this.config.replyEnabled), processing: !!this.running, processingError: this.error }; }
 }
-module.exports = { GroupWorker, isolatedModel };
+module.exports = { GroupWorker, isolatedModel, delay };

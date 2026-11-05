@@ -22,6 +22,20 @@ class GroupCollector {
       const qq = this.qq = this.config.provider === 'official' ? new OfficialBot(this.config) : new OneBot(this.config);
       qq.on('group-event', raw => this.enqueue(raw, generation));
       qq.on('offline', message => { if (generation === this.generation) this.fail(message || 'QQ 已断开，离线消息未采集。'); });
+      qq.on('reconnecting', () => {
+        if (generation !== this.generation) return;
+        this.state = 'reconnecting'; this.error = '腾讯 SDK 正在恢复连接，期间消息完整性未知。';
+        this.serial = this.serial.then(async () => { await this.guard(generation); await this.store.interval('offline','sdk-reconnecting'); })
+          .catch(error => { if (generation === this.generation) this.fail(error.message); });
+      });
+      qq.on('reconnected', () => {
+        if (generation !== this.generation) return;
+        this.state = 'connecting';
+        this.serial = this.serial.then(async () => {
+          await this.guard(generation); await this.store.interval('online','sdk-reconnected'); await this.guard(generation);
+          if (qq.ready) { this.state = 'collecting'; this.error = ''; }
+        }).catch(error => { if (generation === this.generation) this.fail(error.message); });
+      });
       await qq.open(); await this.guard(generation);
       await this.store.interval('online', 'connected'); this.state = 'collecting';
       this.timer = setInterval(() => {

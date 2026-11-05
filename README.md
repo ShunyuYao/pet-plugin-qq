@@ -1,10 +1,12 @@
 # 吐梨邦 · QQ 宠物连接插件
 
-`pet-plugin-qq` 是 **吐梨邦（Turi Topia）的 QQ 连接插件**。当前 **0.3.0-dev.1 本地开发候选**新增 QQ 官方机器人密钥验证、群 OpenID 发现与群收发适配，保留 NapCat 和已有 DSH 宠物私聊适配。群反馈助手收集指定群的新消息、响应真实 @、整理带原话的 bug 和建议，在同一个测试桌宠查看和追问。
+`pet-plugin-qq` 是 **吐梨邦（Turi Topia）的 QQ 连接插件**。当前 **0.3.0-dev.3 本地开发候选**使用腾讯官方 `qqbot-nodejs 1.0.5` 接入 QQ，新增绑定单个本人的单轮私聊测试入口，支持群 OpenID 发现、收发与 SDK 会话恢复，保留 NapCat 和已有 DSH 宠物私聊适配。群反馈助手收集指定群的新消息、响应真实 @、整理带原话的 bug 和建议，在同一个测试桌宠查看和追问。
 
 **B 站生活联动是可选项**，核心聊天无需安装、登录或启用 B 站插件；本版尚未启用跨端视频任务。
 
-群助手可选官方机器人（无需 NapCat 登录普通 QQ）或保留旧 NapCat 接入，不需要 DSH。模型沿用宿主配置，但群请求不读桌面私人历史、长期记忆或工具。**需配套支持隔离 AI 任务的候选宿主；官方密钥及独立网关握手已实测成功，但真实群收发和模型质量仍待验收，不能当成正式上线版。** 先看 [使用说明](docs/group-feedback-quickstart.md) 和 [官方接入记录](docs/official-setup.md)。首版不做跨设备同步、自动工单或群内广播内部分析。
+群助手可选官方机器人（无需 NapCat 登录普通 QQ）或保留旧 NapCat 接入，不需要 DSH。模型沿用宿主配置，但群请求不读桌面私人历史、长期记忆或工具。**需配套支持隔离 AI 任务的候选宿主；已完成本人真实 QQ 私聊及两人测试群 @ 消息入库／回复验证，普通全量群消息、模型反馈质量与长期运行仍未完成验收，不能当成正式上线版。** 先看 [使用说明](docs/group-feedback-quickstart.md) 和 [SDK 迁移记录](docs/official-sdk-migration.md)。首版不做跨设备同步、自动工单或群内广播内部分析。
+
+当前 SDK 迁移边界与验证见 [迁移记录](docs/official-sdk-migration.md)。群模式的 C2C 仅显示收件计数；独立的 [QQ 官方私聊](docs/official-private-trial.md) 页可在暂停群采集后绑定本人，使用隔离模型进行单轮文字回复，不保存聊天正文、不开放本机工具，也不替代完整私聊记忆接续。
 
 <!-- turitopia:context:start -->
 ## 关于吐梨邦
@@ -28,7 +30,7 @@
 | 项目 | 当前情况 |
 | --- | --- |
 | 上架状态 | **未上架**，目前不能从吐梨邦插件市场安装 |
-| 市场版本 | 无；源码为 0.3.0-dev.1 开发候选，尚无插件 Release |
+| 市场版本 | 无；源码为 0.3.0-dev.3 开发候选，尚无插件 Release |
 | 最近核实 | 2026-11-02 |
 | 核实依据 | [正式登记清单固定快照](https://github.com/ShunyuYao/pet-plugin-registry/blob/b537846bdbe7a7e8dcdfc26b8e709f8552eb11dd/registry/plugins.json)中没有插件 ID `qq-context`；[禁用清单固定快照](https://github.com/ShunyuYao/pet-plugin-registry/blob/b537846bdbe7a7e8dcdfc26b8e709f8552eb11dd/registry/blocklist.json)没有该插件记录；[Release 列表](https://github.com/ShunyuYao/pet-plugin-qq/releases)为空 |
 | 应用内验证 | 尚未验证市场可见与市场下载安装；已有本地插件加载、真实 Electron 和 DSH 测试不等于市场上线验证 |
@@ -127,7 +129,7 @@
 
 | 项目 | 状态与验证范围 |
 | --- | --- |
-| 源码版本 | 0.3.0-dev.1 开发候选；尚无插件 Release 或市场安装包。 |
+| 源码版本 | 0.3.0-dev.3 开发候选；尚无插件 Release 或市场安装包。 |
 | 已验证 | macOS arm64 下的本地协议回归、真实 DSH 0.2.1-rc.2 进程，以及真实 Electron 中的插件加载、双向接续、去重、离线、重连、重启恢复和解绑。 |
 | 测试环境 | DSH 使用本地 SSE 模型服务，QQ 使用 OneBot 协议测试服务；不是已登录 QQ 的实机验收。 |
 | 尚未验证 | 真实 QQ/NapCat 登录收发、真实远程 DSH 部署、真实模型理解质量、Windows/Linux 和其他 DSH 版本。 |
