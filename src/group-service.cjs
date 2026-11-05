@@ -5,7 +5,9 @@ const { GroupStore } = require('./group-store.cjs');
 const { GroupCollector } = require('./group-collector.cjs');
 const { GroupWorker } = require('./group-worker.cjs');
 const { FeedbackRepository } = require('./group-feedback.cjs');
+const { OfficialSetup } = require('./official-setup.cjs');
 function createGroupService(pet) {
+  const officialSetup = new OfficialSetup(pet);
   let epoch = 0, disposed = false, serial = Promise.resolve(), session = null, error = '';
   function stop() { ++epoch; if (session) { session.collector.stop(); void session.worker?.stop(); } session = null; }
   async function same(scope, generation) {
@@ -72,14 +74,24 @@ function createGroupService(pet) {
   }
   const api = {
     async groupState(caller) { return read(caller, async bound => {
-      if (!bound) return { viewRevision:epoch, state: 'disconnected', error, messages: 0, groupReplies: false, model: 'not-connected' };
-      const { qqToken, ...config } = bound.config;
-      return { viewRevision:epoch, ...bound.collector.status(), ...bound.worker.status(), progress:await bound.repo.progress(), error: error || bound.collector.error, config };
+      const official = await officialSetup.status();
+      if (!bound) return { viewRevision:epoch, state: 'disconnected', error, messages: 0, groupReplies: false, model: 'not-connected', official };
+      const { qqToken, appSecret, ...config } = bound.config;
+      return { viewRevision:epoch, ...bound.collector.status(), ...bound.worker.status(), progress:await bound.repo.progress(), error: error || bound.collector.error, config, official };
     }); },
+    async groupOfficialPrepare(input, caller) {
+      await authorize(caller);
+      return queue(async () => {
+        if (session) throw Error('已有群配置，不能覆盖；请使用现有连接设置。');
+        return officialSetup.prepare(input);
+      });
+    },
+    async groupOfficialStop(caller) { await authorize(caller); return queue(async () => { officialSetup.stop(); return true; }); },
     async groupConnect(input, caller) {
-      await authorize(caller); const config = validateGroupConfig(input);
+      await authorize(caller);
       return queue(async () => {
         if (session) throw Error('已有群采集配置，请先停止并保留数据后再重新配置。');
+        const config = validateGroupConfig(input?.provider === 'official' ? await officialSetup.connection(input) : input);
         const generation = epoch, scope = await pet.profile.getScope();
         const old = await pet.secrets.get(secretKey(scope)); await guard(scope, generation);
         if (old) throw Error('已有群数据，请恢复原配置；不要覆盖。');
@@ -113,7 +125,9 @@ function createGroupService(pet) {
     }); },
     async groupUpdateConnection(input, caller) { return read(caller, async bound => {
       if(!bound || bound.collector.state!=='paused')throw Error('请先暂停采集再更新接入凭据');
-      const config=validateGroupConfig({...bound.config,qqUrl:input?.qqUrl||bound.config.qqUrl,...(Object.hasOwn(input||{},'qqToken')?{qqToken:input.qqToken}:{})});
+      const config=validateGroupConfig(bound.config.provider === 'official'
+        ? {...bound.config,...(typeof input?.appSecret === 'string' && input.appSecret ? {appSecret:input.appSecret}:{})}
+        : {...bound.config,qqUrl:input?.qqUrl||bound.config.qqUrl,...(Object.hasOwn(input||{},'qqToken')?{qqToken:input.qqToken}:{})});
       const next={...bound.envelope,config};await pet.secrets.set(secretKey(bound.scope),next);
       bound.envelope=next;bound.config=config;bound.worker.config=config;bound.collector.config=config;error='';return true;
     }); },
@@ -174,8 +188,8 @@ function createGroupService(pet) {
   });
   return { api,
     start: () => queue(restore),
-    contextChanged() { stop(); return queue(restore); },
-    dispose() { disposed = true; clearInterval(maintenance); stop(); },
+    contextChanged() { officialSetup.stop(); stop(); return queue(restore); },
+    dispose() { disposed = true; officialSetup.stop(); clearInterval(maintenance); stop(); },
   };
 }
 module.exports = { createGroupService };

@@ -68,7 +68,17 @@ class GroupStore {
         this.redact(row, 'recalled'); this.invalidate(data, row.key); row.recalledAt = event.occurredAt; dirty();
         return { inserted: false, recalled: true };
       }
-      if (row) return { inserted: false };
+      if (row) {
+        // The official gateway may deliver the same message through both full
+        // and @ events. Preserve a later authenticated @ without duplicating
+        // the original or recreating any already-attempted reply job.
+        if (row.availability === 'available' && !row.self && !row.mentioned && event.mentioned) {
+          row.mentioned = true;
+          if (!data.jobs.some(job => job.key === row.key)) data.jobs.push({ key: row.key, groupId: row.groupId, status: 'queued', at: row.receivedAt });
+          dirty();
+        }
+        return { inserted: false };
+      }
       if (data.messages.length >= this.maxEvents) throw Error('group-store-capacity-events');
       data.messages.push({ ...structuredClone(event), availability: 'available', sequence: ++data.sequence, feedbackStatus: event.self ? 'skipped' : 'pending' });
       if (event.mentioned && !event.self) data.jobs.push({ key: event.key, groupId: event.groupId, status: 'queued', at: event.receivedAt });
@@ -88,7 +98,9 @@ class GroupStore {
     });
   }
   query({ groupId, botId, after = 0, limit = 20 } = {}) {
-    if (typeof groupId !== 'string' || !/^\d{1,16}$/.test(groupId) || !Number.isSafeInteger(after) || after < 0 || !Number.isInteger(limit) || limit < 1 || limit > 50) return Promise.reject(Error('invalid-group-query'));
+    // OneBot uses numeric group numbers; official QQ uses opaque OpenIDs.
+    // Authorization remains the service's exact allowlist, not this syntax check.
+    if (typeof groupId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(groupId) || !Number.isSafeInteger(after) || after < 0 || !Number.isInteger(limit) || limit < 1 || limit > 50) return Promise.reject(Error('invalid-group-query'));
     return this.transaction(data => {
       const eligible = data.messages.filter(row => row.groupId === groupId && (!botId || row.botId === botId) && row.sequence > after);
       const messages = []; let bytes = 0;

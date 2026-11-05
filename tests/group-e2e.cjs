@@ -37,6 +37,9 @@ const call=(method,...args)=>value(panel,`pet.services.invoke('qq-context',${JSO
   const manifest=require('../manifest.json');fs.writeFileSync(path.join(profile,'config.json'),JSON.stringify({onboarding:{completed:true},character:'qiqi',tts:{enabled:false},general:{autoCheckUpdates:false},relay:{url:''},ai:{source:'byok',apiKey:'synthetic-model-key',baseUrl:f.base+'/v1',model:'mock'},plugins:{registrySources:[f.base],grants:{'qq-context':{granted:[...manifest.permissions,'service:qq-context']}}}}));fs.writeFileSync(profile+'.environment-selection.json',JSON.stringify({environment:'test'}));
   await start();await openChat();await send('桌面私人暗号 PRIVATE_ONLY_SENTINEL');await wait(()=>value(chat,'document.body.textContent.includes("已经记下桌面私人暗号")'),'private main chat');await activateClosingButton(port,chat,'.cp-close');chat=null;
   await openPanel();await wait(()=>value(panel,'document.querySelector("#g-status").textContent.includes("尚未配置")'),'group configuration');
+  // Official is now the default. Select legacy transport with real keyboard input.
+  await check('#g-provider-onebot');
+  assert.equal(await value(panel,'document.querySelector("#g-provider-onebot").checked'),true);
   for(const [id,text] of Object.entries({'g-url':f.config.qqUrl,'g-token':f.config.qqToken,'g-bot':f.config.botQQ,'g-groups':'80001,80002','g-retention':'7','g-capacity':'5000','g-budget':'20'}))await type(panel,'#'+id,text);
   for(const id of ['#g-ai','#g-replies','#g-consent'])await check(id);
   await H.captureScreenshot(panel,path.join(artifact,'configuration.png'));await activateButton(panel,'#g-connect',{capture:false});await wait(()=>value(panel,'document.querySelector("#g-status").textContent==="正在采集群消息"'),'connected',25000);

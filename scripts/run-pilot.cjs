@@ -9,7 +9,9 @@ fs.mkdirSync(profile,{recursive:true});
 const binary=require(path.join(host,'node_modules/electron'));
 console.log('试点独立数据目录：'+profile+'\n首次启动后按应用正常登录并配置模型，再从插件中心手动安装本插件目录。不会修改日常 profile，不自动授予权限或登录 QQ。');
 const env={...process.env,PET_USERDATA_DIR:profile};delete env.ELECTRON_RUN_AS_NODE;
-const child=spawn(binary,['.'],{cwd:host,env,stdio:'inherit'});
+const args=['.'];
+if(process.env.QQ_PILOT_CDP_PORT){const port=Number(process.env.QQ_PILOT_CDP_PORT);if(!Number.isInteger(port)||port<1024||port>65535)throw Error('QQ_PILOT_CDP_PORT 无效');args.push('--remote-debugging-address=127.0.0.1','--remote-debugging-port='+port);}
+const child=spawn(binary,args,{cwd:host,env,stdio:'inherit'});
 child.on('error',error=>{console.error(error.message);process.exitCode=1;});
 child.on('exit',code=>{process.exitCode=code||0;});
 process.on('SIGINT',()=>child.kill('SIGTERM'));process.on('SIGTERM',()=>child.kill('SIGTERM'));

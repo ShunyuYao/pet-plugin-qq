@@ -1,6 +1,6 @@
 {
   "name": "pet-plugin-qq",
-  "version": "0.2.0-dev.1",
+  "version": "0.3.0-dev.1",
   "private": true,
   "description": "QQ group feedback assistant for Turi Topia, with isolated host AI and an optional existing-DSH connection",
   "engines": {
@@ -11,10 +11,12 @@
     "test:protocol": "node --test tests/protocol.test.cjs",
     "test:group": "node --test tests/group.test.cjs",
     "test:feedback": "node --test tests/feedback.test.cjs",
+    "test:official": "node --test tests/official.test.cjs",
+    "test:official:e2e": "node tests/official-e2e.cjs",
     "test:package": "node --test tests/package.test.cjs",
     "test:e2e": "node tests/electron-e2e.cjs",
     "test:group:e2e": "node tests/group-e2e.cjs",
-    "test:group:delivery": "npm test && npm run test:group:e2e && npm run test:e2e",
+    "test:group:delivery": "npm test && npm run test:official:e2e && npm run test:group:e2e && npm run test:e2e",
     "package:local": "node scripts/package-local.cjs",
     "pilot": "node scripts/run-pilot.cjs",
     "test:delivery": "npm test && npm run test:dsh-live && npm run test:e2e",

@@ -9,18 +9,30 @@ function id(value, positive = false) {
   return (positive ? /^[1-9]\d{0,15}$/ : /^-?\d{1,20}$/).test(text) ? text : null;
 }
 function validateGroupConfig(input) {
-  const qqUrl = String(input?.qqUrl || '').trim(), qqToken = String(input?.qqToken || '').trim();
-  loopback(qqUrl, ['ws:', 'wss:']);
-  const botQQ = id(input?.botQQ, true);
-  if (!botQQ || !Array.isArray(input.groupIds) || !input.groupIds.length || input.groupIds.length > 20) throw Error('请选择 1–20 个指定群和机器人账号。');
-  const groupIds = input.groupIds.map(value => id(value, true));
-  if (groupIds.some(value => !value || !Number.isSafeInteger(Number(value))) || !Number.isSafeInteger(Number(botQQ)) || new Set(groupIds).size !== groupIds.length) throw Error('群号无效或重复。');
-  if (qqToken.length > 4096 || /[\r\n]/.test(qqToken)) throw Error('访问令牌格式无效。');
+  if (input?.provider !== undefined && !['official','onebot'].includes(input.provider)) throw Error('未知 QQ 接入方式');
+  const official = input?.provider === 'official';
+  let connection;
+  if (official) {
+    const { credentials } = require('./official-api.cjs');
+    const { openId } = require('./official-bot.cjs');
+    const { appId, appSecret } = credentials(input);
+    if (!Array.isArray(input.groupIds) || !input.groupIds.length || input.groupIds.length > 20 || input.groupIds.some(value => !openId(value)) || new Set(input.groupIds).size !== input.groupIds.length) throw Error('请选择 1–20 个官方 group_openid（不是数字群号）。');
+    connection = { provider: 'official', appId, appSecret, botQQ: 'official-' + appId, groupIds: [...input.groupIds] };
+  } else {
+    const qqUrl = String(input?.qqUrl || '').trim(), qqToken = String(input?.qqToken || '').trim();
+    loopback(qqUrl, ['ws:', 'wss:']);
+    const botQQ = id(input?.botQQ, true);
+    if (!botQQ || !Array.isArray(input.groupIds) || !input.groupIds.length || input.groupIds.length > 20) throw Error('请选择 1–20 个指定群和机器人账号。');
+    const groupIds = input.groupIds.map(value => id(value, true));
+    if (groupIds.some(value => !value || !Number.isSafeInteger(Number(value))) || !Number.isSafeInteger(Number(botQQ)) || new Set(groupIds).size !== groupIds.length) throw Error('群号无效或重复。');
+    if (qqToken.length > 4096 || /[\r\n]/.test(qqToken)) throw Error('访问令牌格式无效。');
+    connection = { qqUrl, qqToken, botQQ, groupIds };
+  }
   if (!Number.isInteger(input.retentionDays) || input.retentionDays < 1 || input.retentionDays > 365) throw Error('请明确原文保留天数（1–365）。');
   if (!Number.isInteger(input.maxEvents) || input.maxEvents < 1 || input.maxEvents > 50000) throw Error('请明确事件容量（1–50000）；满额停止，不静默删记录。');
   if (input.collectionNoticeConfirmed !== true) throw Error('请先在试点群说明采集用途、访问对象及保留期限。');
   if (input.automation === true && (!Number.isInteger(input.modelCallsPerDay) || input.modelCallsPerDay < 1 || input.modelCallsPerDay > 500)) throw Error('请明确每日模型调用次数预算（1–500）');
-  return { qqUrl, qqToken, botQQ, groupIds, retentionDays: input.retentionDays, maxEvents: input.maxEvents, collectionNoticeConfirmed: true, automation: input.automation === true, replyEnabled: input.replyEnabled === true, modelCallsPerDay: input.automation === true ? input.modelCallsPerDay : 0 };
+  return { ...connection, retentionDays: input.retentionDays, maxEvents: input.maxEvents, collectionNoticeConfirmed: true, automation: input.automation === true, replyEnabled: input.replyEnabled === true, modelCallsPerDay: input.automation === true ? input.modelCallsPerDay : 0 };
 }
 function messageKey(botId, groupId, messageId) { return [botId, groupId, messageId].join(':'); }
 function normalizeGroupEvent(raw, config, receivedAt = Date.now()) {

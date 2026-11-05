@@ -3,11 +3,22 @@
   const $ = id => document.getElementById('g-' + id);
   const call = (method, ...args) => window.pet.services.invoke('qq-context', method, args);
   let revision = null, loaded = false, busy = false, selected = null, feedbackNext = 0, messageNext = 0, pageGeneration = 0, feedbackCount = -1, messageCount = -1, evidenceRevision = 0;
+  let officialConnection = false;
+  const provider = () => $('provider').checked ? 'official' : 'onebot';
+  function providerFields() {
+    const official = provider() === 'official';
+    for (const [name,enabled] of [['official-fields',official],['onebot-fields',!official]]) {
+      $(name).hidden = !enabled; for (const field of $(name).querySelectorAll('input')) field.disabled = !enabled;
+    }
+    $('groups-label').textContent = official ? '指定群 OpenID（逗号分隔，或点击上方发现结果）' : '指定群号（逗号分隔）';
+  }
+  for (const id of ['provider','provider-onebot']) $(id).onchange = () => { $('groups').value=''; $('secret').value=''; if(provider()!=='official')void call('groupOfficialStop').catch(()=>{}); providerFields(); };
   const names = {disconnected:'尚未配置群采集',connecting:'正在验证机器人',collecting:'正在采集群消息',paused:'采集与模型任务已暂停',offline:'连接已断开 / 已停止采集'};
   const statuses = {pending:'待确认',confirmed:'已确认',ignored:'已忽略',in_progress:'处理中',resolved:'已解决'};
   const jobNames={queued:'排队',running:'生成中',sending:'发送中',completed:'已发送',failed:'失败',unknown:'结果待核对',cancelled:'已取消'};
   const el = (tag, text, className) => { const node=document.createElement(tag);node.textContent=text;if(className)node.className=className;return node; };
   const date = value => new Date(value).toLocaleString('zh-CN');
+  const receiveStatus=el('p','','hint');receiveStatus.id='g-receive-status';$('progress').after(receiveStatus);
   for(const [field,limit]of Object.entries({platform:200,version:100,reproduction:2000}))$('feedback-'+field).maxLength=limit;
   const splitBox=el('details',''),splitSummary=el('summary','拆分为另一条反馈（保留原条目与证据）');splitBox.append(splitSummary);
   for(const [name,label]of [['title','新反馈标题'],['description','新反馈的问题或期望'],['keys','依据消息 key（逗号分隔，从下方来源复制）']]){const wrapper=el('label',label),input=el('input','');input.id='g-split-'+name;input.maxLength=name==='title'?120:3000;wrapper.append(input);splitBox.append(wrapper);}
@@ -15,10 +26,10 @@
   const suggestions=el('p','','hint');suggestions.id='g-related-suggestions';$('feedback-related').after(suggestions);
   const confirmButton=el('button','标为已确认','secondary');confirmButton.id='g-feedback-confirm';confirmButton.type='button';$('feedback-save').after(confirmButton);
   const connectionBox=el('details','');connectionBox.append(el('summary','更新接入地址与令牌（先暂停，保留群数据）'));
-  for(const [name,label]of [['url','NapCat 地址'],['token','新访问令牌（留空保持不变）']]){const wrapper=el('label',label),input=el('input','');input.id='g-update-'+name;if(name==='token'){input.type='password';input.autocomplete='new-password';}wrapper.append(input);connectionBox.append(wrapper);}
+  for(const [name,label]of [['url','NapCat 地址'],['token','新访问令牌（留空保持不变）']]){const wrapper=el('label',label),input=el('input','');wrapper.id='g-update-'+name+'-label';input.id='g-update-'+name;if(name==='token'){input.type='password';input.autocomplete='new-password';}wrapper.append(input);connectionBox.append(wrapper);}
   const clearTokenLabel=el('label','明确清空已保存的令牌','check'),clearToken=el('input','');clearToken.id='g-clear-token';clearToken.type='checkbox';clearTokenLabel.prepend(clearToken);connectionBox.append(clearTokenLabel);
   const connectionButton=el('button','保存接入配置','secondary');connectionButton.id='g-update-connection';connectionButton.type='button';connectionBox.append(connectionButton);$('controls').append(connectionBox);
-  function clearView() { pageGeneration++; selected=null;loaded=false;feedbackNext=0;messageNext=0;feedbackCount=-1;for(const id of ['feedback-list','message-list','feedback-sources','jobs'])$(id).replaceChildren();$('connection').reset();$('feedback-editor').reset();for(const id of ['update-token','update-url','edit-budget'])$(id).value='';$('clear-token').checked=false;$('edit-ai').checked=false;$('edit-replies').checked=false;$('config-summary').textContent='';$('feedback-id').textContent='';$('feedback-editor').hidden=true;$('message-detail').hidden=true;$('message-detail').textContent=''; }
+  function clearView() { pageGeneration++; selected=null;loaded=false;feedbackNext=0;messageNext=0;feedbackCount=-1;for(const id of ['feedback-list','message-list','feedback-sources','jobs','official-groups'])$(id).replaceChildren();$('connection').reset();providerFields();$('feedback-editor').reset();for(const id of ['update-token','update-url','edit-budget'])$(id).value='';$('clear-token').checked=false;$('edit-ai').checked=false;$('edit-replies').checked=false;$('config-summary').textContent='';$('feedback-id').textContent='';$('feedback-editor').hidden=true;$('message-detail').hidden=true;$('message-detail').textContent=''; }
   for(const kind of ['group','private'])document.getElementById('mode-'+kind).addEventListener('click',()=>{
     document.getElementById('group-mode').hidden=kind!=='group';document.getElementById('private-mode').hidden=kind!=='private';
     for(const other of ['group','private'])document.getElementById('mode-'+other).setAttribute('aria-pressed',String(other===kind));
@@ -28,26 +39,42 @@
     try {
       const state=await call('groupState');
       if(revision!==state.viewRevision){clearView();revision=state.viewRevision;}
+      const official = state.official || {};
+      if (official.appId && !$('app-id').value) $('app-id').value = official.appId;
+      $('secret').placeholder = official.hasSecret ? '已保存密钥；留空复用，不回显' : '只在本机凭据仓保存，不回显';
+      const officialNames={idle:'尚未连接官方网关',connecting:'正在验证官方密钥与网关',ready:'官方连接成功，等待发现测试群（未采集原文）',offline:'官方连接失败 / 已断开'};
+      $('official-status').textContent=(officialNames[official.state]||'尚未验证官方机器人')+(official.error?' · '+official.error:'');
+      $('official-prepare').disabled=['connecting','ready'].includes(official.state);
+      $('official-stop').disabled=!['connecting','ready'].includes(official.state);
+      $('official-groups').replaceChildren(...(official.groups||[]).map(group=>{
+        const button=el('button',`${group.groupId} · ${group.fullMessagesObserved?'已收到普通群消息':'仅确认群事件，尚未验证全量接收'} · 点击选入`,'record-button');button.type='button';button.onclick=()=>{const ids=$('groups').value.split(/[,，\s]+/).filter(Boolean);if(!ids.includes(group.groupId))ids.push(group.groupId);$('groups').value=ids.join(',');};return button;
+      }));
       $('status').textContent=names[state.state]||state.state;
       $('connection').hidden=!!state.config;$('controls').hidden=!state.config;$('browser').hidden=!state.config;
       $('progress').textContent=`已记录 ${state.messages||0} 条 · 候选反馈 ${state.progress?.feedback||0} 条 · 待整理 ${state.progress?.pending||0} 条 · 失败 ${state.progress?.failed||0} 条 · 今日模型预留调用 ${state.progress?.calls||0} 次${state.processing?' · 正在处理':''}`;
+      const incoming=state.receiveDiagnostics,gateway=incoming?.gateway;
+      receiveStatus.textContent=gateway?`本次连接：网关群消息 ${gateway.groupMessages} 条（全量事件 ${gateway.fullMessages}、@ 事件 ${gateway.atMessages}）；匹配授权群 ${gateway.allowedGroupMessages}，解析通过 ${incoming.normalized}，解析拒绝 ${incoming.rejected}，新增保存 ${incoming.persisted}；心跳确认 ${gateway.heartbeatAcks} 次。${gateway.groupMessages===0?'尚未收到群消息推送；在线不等于已收到普通消息。':''}`:'';
       if(state.error||state.processingError)$('error').textContent=state.error||state.processingError;
       if(!state.config){$('progress').textContent='先配置机器人与指定群。无需 DSH；模型功能需支持隔离调用的候选宿主。';return;}
-      const c=state.config;$('config-summary').textContent=`机器人 ${c.botQQ} · 群 ${c.groupIds.join('、')} · 原文保留 ${c.retentionDays} 天 · 容量 ${c.maxEvents} · ${c.automation?'宿主隔离模型 / 每日最多 '+c.modelCallsPerDay+' 次':'仅采集，不调用模型'}`;
-      if(!loaded){$('filter-group').replaceChildren(...c.groupIds.map(id=>{const option=el('option',id);option.value=id;return option;}));$('edit-ai').checked=c.automation;$('edit-replies').checked=c.replyEnabled;$('edit-budget').value=c.modelCallsPerDay||'';$('update-url').value=c.qqUrl;loaded=true;await feedback(false);await messages(false);}
+      const c=state.config;officialConnection=c.provider==='official';$('config-summary').textContent=`${officialConnection?'官方 AppID '+c.appId:'NapCat 机器人 '+c.botQQ} · 群 ${c.groupIds.join('、')} · 原文保留 ${c.retentionDays} 天 · 容量 ${c.maxEvents} · ${c.automation?'宿主隔离模型 / 每日最多 '+c.modelCallsPerDay+' 次':'仅采集，不调用模型'}${officialConnection?' · 撤回通知未验证，不承诺自动同步':''}`;
+      $('update-url-label').hidden=officialConnection;clearTokenLabel.hidden=officialConnection;
+      $('update-token-label').firstChild.textContent=officialConnection?'新 AppSecret（留空保持不变）':'新访问令牌（留空保持不变）';
+      if(!loaded){$('filter-group').replaceChildren(...c.groupIds.map(id=>{const option=el('option',id);option.value=id;return option;}));$('edit-ai').checked=c.automation;$('edit-replies').checked=c.replyEnabled;$('edit-budget').value=c.modelCallsPerDay||'';$('update-url').value=c.qqUrl||'';await feedback(false);await messages(false);loaded=true;}
       if(feedbackCount!==state.progress?.feedback){feedbackCount=state.progress?.feedback;await feedback(false);}
       if(messageCount!==state.messages){messageCount=state.messages;if(messageNext<=20)await messages(false);}
       if(evidenceRevision!==state.progress?.evidenceRevision){evidenceRevision=state.progress?.evidenceRevision;await feedback(false);if(selected){const detail=await call('groupFeedbackDetail',{id:selected.id});if(detail.evidenceChanged){selected=detail;$('feedback-sources').replaceChildren(el('p','原话已撤回或过期，不再展示。'));$('evidence-warning').textContent='来源已变化：当前编辑草稿保留，但不能再作为证据保存；可以调整处理状态。';}}}
       $('jobs').replaceChildren(...(state.progress?.jobs||[]).map(job=>el('li',`${job.groupId} · ${jobNames[job.status]||job.status}${job.error?' · '+job.error:''}`)));
     }catch(error){$('status').textContent='无法读取群状态';$('error').textContent=error.message;if(/身份|作用域/.test(error.message))clearView();}
   }
-  function config() { return {qqUrl:$('url').value.trim(),qqToken:$('token').value,botQQ:$('bot').value.trim(),groupIds:$('groups').value.split(/[,，\s]+/).filter(Boolean),retentionDays:Number($('retention').value),maxEvents:Number($('capacity').value),automation:$('ai').checked,replyEnabled:$('replies').checked,modelCallsPerDay:Number($('budget').value),collectionNoticeConfirmed:$('consent').checked}; }
-  $('connection').addEventListener('submit',event=>{event.preventDefault();void action(async()=>{await call('groupConnect',config());$('token').value='';loaded=false;});});
+  function config() { return {...(provider()==='official'?{provider:'official',appId:$('app-id').value.trim(),appSecret:$('secret').value}:{qqUrl:$('url').value.trim(),qqToken:$('token').value,botQQ:$('bot').value.trim()}),groupIds:$('groups').value.split(/[,，\s]+/).filter(Boolean),retentionDays:Number($('retention').value),maxEvents:Number($('capacity').value),automation:$('ai').checked,replyEnabled:$('replies').checked,modelCallsPerDay:Number($('budget').value),collectionNoticeConfirmed:$('consent').checked}; }
+  $('official-prepare').onclick=()=>action(async()=>{const input={appId:$('app-id').value.trim(),appSecret:$('secret').value};$('secret').value='';await call('groupOfficialPrepare',input);});
+  $('official-stop').onclick=()=>action(()=>call('groupOfficialStop'));
+  $('connection').addEventListener('submit',event=>{event.preventDefault();void action(async()=>{const input=config();$('token').value='';$('secret').value='';await call('groupConnect',input);loaded=false;});});
   $('pause').onclick=()=>action(()=>call('groupPause'));
   $('resume').onclick=()=>action(()=>call('groupResume'));
   $('process').onclick=()=>action(()=>call('groupProcess'));
   $('save-ai').onclick=()=>action(async()=>{await call('groupConfigureAI',{automation:$('edit-ai').checked,replyEnabled:$('edit-replies').checked,modelCallsPerDay:Number($('edit-budget').value)});});
-  $('update-connection').onclick=()=>action(async()=>{const input={qqUrl:$('update-url').value};if($('clear-token').checked)input.qqToken='';else if($('update-token').value)input.qqToken=$('update-token').value;await call('groupUpdateConnection',input);$('update-token').value='';$('clear-token').checked=false;});
+  $('update-connection').onclick=()=>action(async()=>{const input=officialConnection?{appSecret:$('update-token').value}:{qqUrl:$('update-url').value};if(!officialConnection){if($('clear-token').checked)input.qqToken='';else if($('update-token').value)input.qqToken=$('update-token').value;}$('update-token').value='';await call('groupUpdateConnection',input);$('clear-token').checked=false;});
   $('clear').onclick=()=>action(async()=>{await call('groupClear',{confirm:$('clear-confirm').value});$('clear-confirm').value='';clearView();$('connection').reset();});
   function filter() { return {groupId:$('filter-group').value,...($('filter-type').value?{type:$('filter-type').value}:{}),...($('filter-status').value?{status:$('filter-status').value}:{})}; }
   async function feedback(more=false) {

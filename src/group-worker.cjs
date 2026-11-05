@@ -76,7 +76,7 @@ class GroupWorker {
       await this.guard(signal);
       await this.repo.job(job.key, {status:'sending',reply}); phase = 'sending';
       await this.guard(signal);
-      const receipt = await this.collector.qq.sendGroup(job.groupId, reply);
+      const receipt = await this.collector.qq.sendGroup(job.groupId, reply, trigger);
       await this.repo.job(job.key, {status:'completed',receipt}); this.error = '';
     } catch (error) {
       await this.repo.job(job.key, {status:phase === 'sending' ? 'unknown' : 'failed',error:error.message}).catch(() => {});
