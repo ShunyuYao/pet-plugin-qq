@@ -6,7 +6,7 @@ const {WebSocketServer}=require('ws');
 const {fixtures,wait}=require('./fixtures.cjs');
 const host=process.env.PET_PLUGIN_HOST_DIR;if(!host)throw Error('Set PET_PLUGIN_HOST_DIR to the candidate host demo');
 const H=require(path.join(host,'../tests/e2e-helpers'));
-const {activateButton}=require(path.join(host,'../tests/e2e/html-card-input'));
+const {activateButton,activateClosingButton}=require(path.join(host,'../tests/e2e/html-card-input'));
 const privateMode=process.argv.includes('--private');
 const port=Number(process.env.QQ_OFFICIAL_CDP_PORT||(privateMode?9575:9573)),profile=fs.mkdtempSync(path.join(os.tmpdir(),'desktop-pet-qq-official-'));
 const artifact=path.resolve(__dirname,'../artifacts/'+(privateMode?'private':'official')+'-e2e-'+Date.now());
@@ -21,6 +21,22 @@ async function start(){
   if(login){await type(login,'#phone','19977776661');await type(login,'#sms','123456');await activateButton(login,'.primary',{capture:false});await H.waitTargetGone(port,'trial-entry.html');}
   const pet=await H.findTarget(port,'/index.html');await value(pet,"petAPI.togglePluginPanel('qq-context')");panel=await H.findReadyTarget(port,'/panel/index.html','pet');
   await wait(()=>value(panel,'document.querySelector("#g-status").textContent!=="正在读取状态"'),'group state ready');
+  assert.equal(await value(panel,'!!document.querySelector("#panel-close")'),true,'panel needs a visible exit control');
+}
+async function closeAndReopen(mode,method){
+  const before=await call(method),connections=clients.size;
+  for(const tab of ['direct','group','private']){
+    await activateButton(panel,'#mode-'+tab,{capture:false});
+    await value(panel,'window.scrollTo(0,document.documentElement.scrollHeight)');
+    assert.equal(await value(panel,'(()=>{const r=document.querySelector("#panel-close").getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight&&!document.querySelector("#panel-close").disabled;})()'),true,'close stays visible on '+tab);
+  }
+  await activateClosingButton(port,panel,'#panel-close');panel=null;
+  assert.equal(clients.size,connections,'closing the panel must not stop the QQ transport');
+  const pet=await H.findTarget(port,'/demo/index.html');await value(pet,"petAPI.togglePluginPanel('qq-context')");panel=await H.findReadyTarget(port,'/panel/index.html','pet');
+  await activateButton(panel,'#mode-'+mode,{capture:false});
+  const after=await call(method);assert.equal(after.state,before.state);assert.equal(after.messages??after.completed,before.messages??before.completed);
+  assert.equal(clients.size,connections,'reopening the panel must not replace the connection');
+  await H.captureScreenshot(panel,path.join(artifact,'panel-exit.png'));
 }
 function publish(id,text,patch={},type='GROUP_MESSAGE_CREATE'){
   const event={op:0,t:type,s:2,d:{id:'ROBOT1.0_'+id,group_openid:groupId,timestamp:new Date().toISOString(),author:{id:'MEMBER_FAKE_123',username:'合成用户'},content:text,message_scene:{ext:['auth_token=SCENE_TOKEN_NOT_FOR_STORAGE']},...patch}};
@@ -46,6 +62,7 @@ async function privateScenario(){
   await assert.rejects(call('groupConnect',{provider:'official',appId:'1000000001',appSecret:'SYNTHETIC_ONLY',groupIds:[groupId],retentionDays:4,maxEvents:5000,collectionNoticeConfirmed:true}),/暂停官方私聊/);
   await wait(()=>value(panel,'document.querySelector("#d-summary").textContent.includes("已回复 1 条")'),'private reply status rendered');
   await H.captureScreenshot(panel,path.join(artifact,'private-reply.png'));
+  await closeAndReopen('direct','directState');
   await activateButton(panel,'#d-pause',{capture:false});await wait(async()=>(await call('directState')).state==='paused','private paused');
   await H.stopOwned(child);child=null;await start();await activateButton(panel,'#mode-direct',{capture:false});
   assert.equal((await call('directState')).state,'paused');assert.equal((await call('directState')).completed,1);
@@ -99,6 +116,7 @@ async function privateScenario(){
   publish('message_1','官方普通消息采集：设置页打不开');
   await wait(async()=>(await call('groupState')).receiveDiagnostics.duplicates===3,'replayed event is deduplicated after SDK resume');
   await H.captureScreenshot(panel,path.join(artifact,'official-messages.png'));
+  await closeAndReopen('group','groupState');
   const resumesBeforePause=resumeFrames;
   for(const ws of clients)ws.send(JSON.stringify({op:7}));
   await wait(async()=>(await call('groupState')).state==='reconnecting','SDK reconnect visible before pausing');
